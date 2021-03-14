@@ -1,5 +1,6 @@
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import matplotlib.pyplot as plt
 
 def conv_layer_2d(x, filter_shape, stride, trainable=True):
@@ -7,13 +8,13 @@ def conv_layer_2d(x, filter_shape, stride, trainable=True):
         name='weight',
         shape=filter_shape,
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.initializers.glorot_normal,
         trainable=trainable)
     b = tf.get_variable(
         name='bias',
         shape=[filter_shape[-1]],
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.initializers.glorot_normal,
         trainable=trainable)
     x = tf.nn.bias_add(tf.nn.conv2d(
         input=x,
@@ -29,13 +30,13 @@ def deconv_layer_2d(x, filter_shape, output_shape, stride, trainable=True):
         name='weight',
         shape=filter_shape,
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.initializers.glorot_normal,
         trainable=trainable)
     b = tf.get_variable(
         name='bias',
         shape=[output_shape[-1]],
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.initializers.glorot_normal,
         trainable=trainable)
     x = tf.nn.bias_add(tf.nn.conv2d_transpose(
         value=x,
