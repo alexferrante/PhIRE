@@ -2,7 +2,8 @@
 '''
 import os
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 from time import strftime, time
 from utils import plot_SR_data
 from sr_network import SR_NETWORK
@@ -350,7 +351,6 @@ class PhIREGANs:
 
         ds = tf.data.TFRecordDataset(data_path)
         ds = ds.map(lambda xx: self._parse_test_(xx, self.mu_sig)).batch(batch_size)
-
         iterator = tf.data.Iterator.from_structure(ds.output_types,
                                                    ds.output_shapes)
         idx, LR_out = iterator.get_next()
@@ -477,6 +477,39 @@ class PhIREGANs:
 
         return idx, data_LR
 
+    def _parse_test_(self, serialized_example, mu_sig=None):
+        '''
+            Parser data from TFRecords for the models to read in for testing
+
+            inputs:
+                serialized_example - batch of data drawn from tfrecord
+                mu_sig             - mean, standard deviation if known
+
+            outputs:
+                idx     - array of indicies for each sample
+                data_LR - array of LR images in the batch
+        '''
+
+        feature = {'index': tf.FixedLenFeature([], tf.int64),
+                 'data_LR': tf.FixedLenFeature([], tf.string),
+                    'h_LR': tf.FixedLenFeature([], tf.int64),
+                    'w_LR': tf.FixedLenFeature([], tf.int64),
+                       'c': tf.FixedLenFeature([], tf.int64)}
+        example = tf.parse_single_example(serialized_example, feature)
+
+        idx = example['index']
+
+        h_LR, w_LR = example['h_LR'], example['w_LR']
+
+        c = example['c']
+
+        data_LR = tf.decode_raw(example['data_LR'], tf.float64)
+        data_LR = tf.reshape(data_LR, (h_LR, w_LR, c))
+        if mu_sig is not None:
+            data_LR = (data_LR - mu_sig[0])/mu_sig[1]
+
+        return idx, data_LR
+
     def set_mu_sig(self, data_path, batch_size=1):
         '''
             Compute mean (mu) and standard deviation (sigma) for each data channel
@@ -501,10 +534,17 @@ class PhIREGANs:
                     data_HR = sess.run(HR_out)
 
                     N_batch, h, w, c = data_HR.shape
+                    
                     N_new = N + N_batch
 
-                    mu_batch = np.mean(data_HR, axis=(0, 1, 2))
-                    sigma_batch = np.var(data_HR, axis=(0, 1, 2))
+                    nan_data_hr = data_HR.copy()
+                    nan_data_hr[nan_data_hr == 0] = np.nan
+
+                    mu_batch = np.nanmean(nan_data_hr, axis=(0,1,2))
+                    sigma_batch = np.nanvar(nan_data_hr, axis=(0,1,2))
+
+                    # mu_batch = np.mean(data_HR, axis=(0, 1, 2))
+                    # sigma_batch = np.var(data_HR, axis=(0, 1, 2))
 
                     sigma = (N/N_new)*sigma + (N_batch/N_new)*sigma_batch + (N*N_batch/N_new**2)*(mu - mu_batch)**2
                     mu = (N/N_new)*mu + (N_batch/N_new)*mu_batch
@@ -515,7 +555,6 @@ class PhIREGANs:
                 pass
 
         self.mu_sig = [mu, np.sqrt(sigma)]
-
         print('Done.')
 
     def set_LR_data_shape(self, data_path):
